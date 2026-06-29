@@ -1,8 +1,8 @@
 import { Effect } from "effect"
-import { CLINE_CHAT_URL, CLINE_MODELS_URL, CLINE_REFRESH_URL } from "./config.ts"
-import { AuthError, UpstreamError } from "./errors.ts"
-import { TokenStore } from "./token-store.ts"
-import type { RecommendedModelsResponse, RefreshResponse, SelectedCredentials } from "./types.ts"
+import { CLINE_CHAT_URL, CLINE_MODELS_URL, CLINE_REFRESH_URL } from "./config.js"
+import { AuthError, UpstreamError } from "./errors.js"
+import { TokenStore } from "./token-store.js"
+import type { RecommendedModelsResponse, RefreshResponse, SelectedCredentials } from "./types.js"
 
 const REFRESH_BUFFER_MS = 5 * 60 * 1000
 

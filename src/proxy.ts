@@ -1,5 +1,5 @@
 import { Effect } from "effect"
-import { ClineClient } from "./cline-client.ts"
+import { ClineClient } from "./cline-client.js"
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)

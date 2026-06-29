@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
 import { Effect } from "effect"
-import { ClineClient } from "./cline-client.ts"
-import { loginWithDeviceCode } from "./oauth.ts"
-import { serveProxy } from "./proxy.ts"
-import { TokenStore } from "./token-store.ts"
+import { ClineClient } from "./cline-client.js"
+import { loginWithDeviceCode } from "./oauth.js"
+import { serveProxy } from "./proxy.js"
+import { TokenStore } from "./token-store.js"
 
 function getArgValue(args: string[], name: string, fallback?: string): string | undefined {
   const index = args.indexOf(name)

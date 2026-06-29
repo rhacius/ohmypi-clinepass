@@ -1,9 +1,9 @@
 import { setTimeout as sleep } from "node:timers/promises"
 import { Effect } from "effect"
-import { CLINE_AUTH_REGISTER_URL, WORKOS_AUTHENTICATE_URL, WORKOS_CLIENT_ID, WORKOS_DEVICE_AUTH_URL } from "./config.ts"
-import { AuthError } from "./errors.ts"
-import { TokenStore } from "./token-store.ts"
-import type { RefreshResponse, SelectedCredentials } from "./types.ts"
+import { CLINE_AUTH_REGISTER_URL, WORKOS_AUTHENTICATE_URL, WORKOS_CLIENT_ID, WORKOS_DEVICE_AUTH_URL } from "./config.js"
+import { AuthError } from "./errors.js"
+import { TokenStore } from "./token-store.js"
+import type { RefreshResponse, SelectedCredentials } from "./types.js"
 
 const DEFAULT_AUTH_TIMEOUT_MS = 5 * 60 * 1000
 const DEFAULT_POLL_INTERVAL_SECONDS = 5

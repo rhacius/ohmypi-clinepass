@@ -1,6 +1,6 @@
 import type { Api, Model } from "@earendil-works/pi-ai"
 import { Effect } from "effect"
-import { CLINE_MODELS_URL } from "./config.ts"
+import { CLINE_MODELS_URL } from "./config.js"
 import {
   CLINE_CLIENT_HEADERS,
   CLINEPASS_BASE_URL,
@@ -8,9 +8,9 @@ import {
   CLINEPASS_DEFAULT_CONTEXT_WINDOW,
   CLINEPASS_DEFAULT_MAX_TOKENS,
   CLINEPASS_PROVIDER_ID,
-} from "./constants.ts"
-import { UpstreamError } from "./errors.ts"
-import type { RecommendedModelsResponse } from "./types.ts"
+} from "./constants.js"
+import { UpstreamError } from "./errors.js"
+import type { RecommendedModelsResponse } from "./types.js"
 
 export interface ClinePassModelEntry {
   readonly id: string

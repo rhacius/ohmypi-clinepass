@@ -1,9 +1,9 @@
 import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises"
 import { dirname } from "node:path"
 import { Effect } from "effect"
-import { defaultProviderSettingsPath } from "./config.ts"
-import { TokenFileError } from "./errors.ts"
-import type { ProviderAuth, SelectedCredentials, StoredProviders } from "./types.ts"
+import { defaultProviderSettingsPath } from "./config.js"
+import { TokenFileError } from "./errors.js"
+import type { ProviderAuth, SelectedCredentials, StoredProviders } from "./types.js"
 
 const PROVIDER_ORDER = ["cline", "cline-pass"] as const
 
