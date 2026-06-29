@@ -23,12 +23,26 @@ function needsRefresh(credentials: SelectedCredentials, force: boolean): boolean
   return credentials.expiresAt - Date.now() <= REFRESH_BUFFER_MS
 }
 
+const CLINE_CLIENT_HEADERS = {
+  "User-Agent": "Cline/4.0.0",
+  "X-PLATFORM": "linux",
+  "X-PLATFORM-VERSION": "unknown",
+  "X-CLIENT-TYPE": "vscode",
+  "X-CLIENT-VERSION": "4.0.0",
+  "X-CORE-VERSION": "4.0.0",
+} as const
+
+function applyClineHeaders(headers: Headers): Headers {
+  for (const [key, value] of Object.entries(CLINE_CLIENT_HEADERS)) headers.set(key, value)
+  return headers
+}
+
 function cloneHeaders(headers: Headers): Headers {
   const next = new Headers(headers)
   next.delete("host")
   next.delete("content-length")
   next.delete("authorization")
-  return next
+  return applyClineHeaders(next)
 }
 
 function parseJson<T>(text: string, error: AuthError | UpstreamError): T {
@@ -53,7 +67,7 @@ export class ClineClient {
   async refreshAsync(credentials: SelectedCredentials): Promise<SelectedCredentials> {
     const response = await fetch(CLINE_REFRESH_URL, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: applyClineHeaders(new Headers({ "content-type": "application/json" })),
       body: JSON.stringify({ refreshToken: credentials.refreshToken, grantType: "refresh_token" }),
     })
     const text = await response.text()
@@ -145,13 +159,13 @@ export class ClineClient {
     const token = await this.getValidTokenAsync({ forceRefresh: true })
     const response = await fetch(CLINE_CHAT_URL, {
       method: "POST",
-      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      headers: applyClineHeaders(new Headers({ authorization: `Bearer ${token}`, "content-type": "application/json" })),
       body: JSON.stringify({
         model,
         messages: [{ role: "user", content: "Reply exactly CLINEPASS_OK" }],
         stream: false,
-        max_tokens: 20,
-        reasoning: { enabled: false },
+        max_tokens: 100,
+        reasoning: { exclude: true },
       }),
     })
     const text = await response.text()
