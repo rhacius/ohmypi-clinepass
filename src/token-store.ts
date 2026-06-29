@@ -25,6 +25,10 @@ function getProviderAuth(state: StoredProviders, providerId: "cline" | "cline-pa
   return state.providers?.[providerId]?.settings?.auth
 }
 
+export function emptyStoredProviders(): StoredProviders {
+  return { version: 1, lastUsedProvider: "cline", providers: {} }
+}
+
 export function redactToken(value?: string): string {
   if (!value) return "missing"
   const normalized = value.startsWith("workos:") ? value.slice("workos:".length) : value
@@ -65,6 +69,7 @@ export class TokenStore {
     try {
       return parseStoredProviders(await readFile(this.path, "utf8"), this.path)
     } catch (cause) {
+      if (cause && typeof cause === "object" && "code" in cause && cause.code === "ENOENT") return emptyStoredProviders()
       if (cause instanceof TokenFileError) throw cause
       throw new TokenFileError({ message: "Failed to read Cline providers.json", path: this.path, cause })
     }

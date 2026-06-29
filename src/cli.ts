@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { Effect } from "effect"
 import { ClineClient } from "./cline-client.ts"
+import { loginWithDeviceCode } from "./oauth.ts"
 import { serveProxy } from "./proxy.ts"
 import { TokenStore } from "./token-store.ts"
 
@@ -12,10 +13,11 @@ function getArgValue(args: string[], name: string, fallback?: string): string | 
 
 function printHelp(): void {
   console.log(`clinepass-proxy commands:
-  status
-  models
-  test --model cline-pass/glm-5.2
-  serve --port 48752`)
+  login [--token-file path]
+  status [--token-file path]
+  models [--token-file path]
+  test [--token-file path] --model cline-pass/glm-5.2
+  serve [--token-file path] --port 48752`)
 }
 
 function conciseError(error: unknown): string {
@@ -43,15 +45,35 @@ async function runTest(client: ClineClient, args: string[]): Promise<void> {
   console.log(JSON.stringify({ ok: true, status: result.status, model, content }, null, 2))
 }
 
+async function runLogin(store: TokenStore): Promise<void> {
+  const selected = await Effect.runPromise(
+    loginWithDeviceCode({
+      tokenStore: store,
+      onPrompt: (prompt) => {
+        console.log("Open this URL to authorize ClinePass:")
+        console.log(prompt.verificationUriComplete)
+        console.log(`User code: ${prompt.userCode}`)
+        console.log(`Expires in: ${prompt.expiresInSeconds}s`)
+      },
+    }),
+  )
+  console.log(JSON.stringify({ ok: true, providerId: selected.providerId, tokenFile: store.path }, null, 2))
+}
+
 async function main(): Promise<void> {
   const args = process.argv.slice(2)
   const command = args[0]
-  const store = new TokenStore()
+  const tokenFile = getArgValue(args, "--token-file")
+  const store = new TokenStore(tokenFile)
   const client = new ClineClient(store)
 
   try {
     if (!command || command === "help" || command === "--help" || command === "-h") {
       printHelp()
+      return
+    }
+    if (command === "login") {
+      await runLogin(store)
       return
     }
     if (command === "status") {

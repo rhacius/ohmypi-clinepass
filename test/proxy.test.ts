@@ -1,6 +1,9 @@
+import { mkdtemp, readFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { describe, expect, it } from "bun:test"
 import { withDefaultReasoningSuppression } from "../src/proxy.ts"
-import { redactToken, selectCredentials } from "../src/token-store.ts"
+import { emptyStoredProviders, redactToken, selectCredentials, TokenStore } from "../src/token-store.ts"
 
 describe("withDefaultReasoningSuppression", () => {
   it("adds reasoning exclusion for cline-pass models", () => {
@@ -37,5 +40,24 @@ describe("token helpers", () => {
 
   it("redacts tokens", () => {
     expect(redactToken("workos:abcdefghijklmnopqrstuvwxyz")).toBe("abcd…wxyz")
+  })
+
+  it("uses empty provider shape for missing custom token file", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pi-clinepass-test-"))
+    const path = join(dir, "providers.json")
+    const store = new TokenStore(path)
+
+    expect(await store.readStateAsync()).toEqual(emptyStoredProviders())
+
+    await store.updateCredentialsAsync("cline", {
+      accessToken: "access",
+      refreshToken: "refresh",
+      expiresAt: 123,
+      accountId: "acct",
+    })
+
+    const written = JSON.parse(await readFile(path, "utf8")) as { providers?: Record<string, unknown>; lastUsedProvider?: string }
+    expect(written.lastUsedProvider).toBe("cline")
+    expect(written.providers?.cline).toBeTruthy()
   })
 })
