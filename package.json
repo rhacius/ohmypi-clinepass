@@ -2,7 +2,15 @@
   "name": "@codewithkenzo/pi-clinepass",
   "version": "0.1.0",
   "private": true,
-  "description": "Pi provider extension for ClinePass subscription models.",
+  "description": "Native Pi provider extension for ClinePass OAuth models.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/codewithkenzo/pi-clinepass.git"
+  },
+  "homepage": "https://github.com/codewithkenzo/pi-clinepass#readme",
+  "bugs": {
+    "url": "https://github.com/codewithkenzo/pi-clinepass/issues"
+  },
   "keywords": [
     "pi-package",
     "pi-extension",
@@ -12,6 +20,7 @@
   ],
   "type": "module",
   "files": [
+    "assets",
     "src",
     "README.md"
   ],

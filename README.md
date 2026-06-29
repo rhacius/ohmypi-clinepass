@@ -1,19 +1,131 @@
 # pi-clinepass
 
-Pi provider extension for ClinePass subscription models, especially `cline-pass/glm-5.2`.
+![pi-clinepass](assets/pi-clinepass-hero.png)
 
-Primary integration is a real Pi provider registered through `pi.registerProvider`. The older local proxy remains as an optional dev/Hermes fallback.
+ClinePass models inside Pi through Pi's native provider system.
 
-## What it registers
+`pi-clinepass` registers a real `clinepass` provider with OAuth device login, live ClinePass model discovery, Pi-compatible OpenAI chat transport, prompt cache markers, and reasoning controls tuned for GLM/Qwen/Kimi/DeepSeek-style models.
+
+## What works
 
 - Provider id: `clinepass`
-- Base URL: `https://api.cline.bot/api/v1`
-- API: `openai-completions`
+- Primary model: `cline-pass/glm-5.2`
 - Auth: Pi `/login` OAuth device-code flow
-- Model discovery: live `https://api.cline.bot/api/v1/ai/cline/recommended-models`, using `clinePass[]`
-- Model IDs: upstream IDs such as `cline-pass/glm-5.2`
+- Model list: live Cline recommended-models endpoint, filtered to `clinePass[]`
+- Transport: `openai-completions` against `https://api.cline.bot/api/v1`
+- Token handling: Pi stores OAuth credentials; this package returns `workos:<access>` only to Pi's provider auth path
+- Reasoning: Pi thinking levels map to ClinePass-compatible `reasoning` params
+- Prompt caching: Pi emits Anthropic-style cache-control markers where supported
 
-## Pi install/dev
+No API key required. No tokens printed.
+
+## Install locally
+
+From a checkout:
+
+```bash
+bun install
+bun run typecheck
+bun test
+pi install .
+```
+
+From GitHub:
+
+```bash
+pi install git:github.com/codewithkenzo/pi-clinepass
+```
+
+Or add a local checkout manually to `~/.pi/agent/settings.json`:
+
+```json
+{
+  "packages": ["../../dev/pi-clinepass"]
+}
+```
+
+Then restart Pi or run `/reload`.
+
+## Login + use
+
+In Pi:
+
+1. Run `/login`
+2. Choose **ClinePass**
+3. Open the browser/device URL and enter the shown code
+4. Run `/model`
+5. Pick `clinepass/cline-pass/glm-5.2`
+
+Exact model string for CLI/non-interactive runs:
+
+```bash
+pi --model clinepass/cline-pass/glm-5.2 "Say OK"
+```
+
+## Model discovery
+
+The extension fetches:
+
+```text
+https://api.cline.bot/api/v1/ai/cline/recommended-models
+```
+
+It reads `clinePass[]`, dedupes model ids, and falls back to a small built-in list if discovery is unavailable.
+
+Known models include:
+
+- `cline-pass/glm-5.2`
+- `cline-pass/qwen3.7-max`
+- `cline-pass/qwen3.7-plus`
+- `cline-pass/kimi-k2.7-code`
+- `cline-pass/deepseek-v4-pro`
+- `cline-pass/deepseek-v4-flash`
+
+## OAuth behavior
+
+Flow:
+
+1. Start WorkOS device auth with Cline's production client id.
+2. Show Pi device-code/browser callbacks.
+3. Poll WorkOS until approved.
+4. Register WorkOS tokens with Cline `/api/v1/auth/register`.
+5. Return Pi `OAuthCredentials` with Cline access/refresh/expires metadata.
+6. Refresh through Cline `/api/v1/auth/refresh` when needed.
+7. Send requests with `Authorization: Bearer workos:<access>`.
+
+Token rule: this repo never logs access or refresh tokens.
+
+## ClinePass compatibility
+
+Each model is registered with:
+
+```ts
+{
+  api: "openai-completions",
+  input: ["text"],
+  contextWindow: 128000,
+  maxTokens: 8192,
+  reasoning: true,
+  compat: {
+    thinkingFormat: "together",
+    cacheControlFormat: "anthropic",
+    supportsUsageInStreaming: true,
+    supportsReasoningEffort: true,
+    supportsStore: false,
+    supportsDeveloperRole: false,
+    maxTokensField: "max_tokens"
+  }
+}
+```
+
+Why `thinkingFormat: "together"`:
+
+- ClinePass accepts top-level `reasoning` objects.
+- `{ reasoning: { enabled: false } }` suppresses GLM reasoning.
+- Pi's OpenRouter-style off state emits `{ reasoning: { effort: "none" } }`, which ClinePass does not suppress.
+- z.ai-native `thinking: { type: "disabled" }` is also ignored by ClinePass.
+
+## Development
 
 ```bash
 bun install
@@ -21,97 +133,25 @@ bun run typecheck
 bun test
 ```
 
-Package metadata exposes:
+Useful smoke test after local install:
+
+```bash
+pi --model clinepass/cline-pass/glm-5.2 -p "Reply exactly OK"
+```
+
+If it says `No API key found for clinepass`, the extension loaded correctly; run `/login`.
+
+## Package surface
+
+Pi loads this package through:
 
 ```json
 {
-  "pi": { "extensions": ["./src/index.ts"] }
+  "pi": {
+    "extensions": ["./src/index.ts"]
+  }
 }
 ```
 
-After installing/loading extension in Pi:
+Runtime entrypoint: `src/index.ts`.
 
-1. Run `/login`
-2. Choose subscription/provider flow for **ClinePass**
-3. Open browser URL shown by device flow and enter user code
-4. Run `/model` and pick `cline-pass/glm-5.2`
-
-## OAuth behavior
-
-The extension uses Cline's production WorkOS client id:
-
-```text
-client_01K3A541FN8TA3EPPHTD2325AR
-```
-
-Flow:
-
-1. `login(callbacks)` starts WorkOS device auth.
-2. Calls Pi callbacks `onDeviceCode` and `onAuth`; no tokens logged.
-3. Polls WorkOS until approved.
-4. Registers WorkOS tokens with Cline `/api/v1/auth/register`.
-5. Returns Pi `OAuthCredentials` with Cline `access`, `refresh`, `expires`, plus account metadata.
-6. `getApiKey(credentials)` returns `workos:<access>`.
-7. `refreshToken(credentials)` calls Cline `/api/v1/auth/refresh`.
-
-## Model compat
-
-Each discovered ClinePass model is registered with:
-
-- `api: "openai-completions"`
-- `input: ["text"]`
-- context window `128000`
-- max tokens `8192`
-- zero subscription display cost including cache read/write
-- Cline client headers:
-  - `User-Agent: Cline/4.0.0`
-  - `X-PLATFORM: linux`
-  - `X-PLATFORM-VERSION: unknown`
-  - `X-CLIENT-TYPE: vscode`
-  - `X-CLIENT-VERSION: 4.0.0`
-  - `X-CORE-VERSION: 4.0.0`
-
-Compat flags include:
-
-```ts
-{
-  thinkingFormat: "together",
-  cacheControlFormat: "anthropic",
-  supportsUsageInStreaming: true,
-  maxTokensField: "max_tokens",
-  supportsReasoningEffort: true,
-  supportsStore: false,
-  supportsDeveloperRole: false
-}
-```
-
-Rationale: ClinePass gateway accepts top-level `reasoning` objects. Live tests showed `{ reasoning: { exclude: true } }` and `{ reasoning: { enabled: false } }` suppress GLM reasoning, while z.ai-native `thinking: { type: "disabled" }` is ignored. Pi's `openrouter` compat emits `{ reasoning: { effort: "none" } }` when thinking is off, which ClinePass does **not** suppress. Therefore this extension uses `thinkingFormat: "together"`: thinking off emits `{ reasoning: { enabled: false } }`; thinking on emits `{ reasoning: { enabled: true }, reasoning_effort: "low" | "medium" | "high" }`. It does **not** use `thinkingFormat: "zai"` or `"openrouter"` for ClinePass GLM.
-
-Prompt caching uses Pi's OpenAI-compatible `cacheControlFormat: "anthropic"` flag. This asks Pi to emit Anthropic-style cache-control markers where supported by its provider implementation; cache pricing is zero for subscription display.
-
-## Optional proxy/dev fallback
-
-The proxy is not the primary Pi integration. It is useful for curl testing or Hermes/custom OpenAI-compatible clients.
-
-Uses existing Cline OAuth credentials from:
-
-```text
-~/.cline/data/settings/providers.json
-```
-
-Commands:
-
-```bash
-bun run src/cli.ts status
-bun run src/cli.ts models
-bun run src/cli.ts test --model cline-pass/glm-5.2
-bun run src/cli.ts serve --port 48752
-```
-
-Proxy config:
-
-- Base URL: `http://127.0.0.1:48752/v1`
-- API key: dummy
-- Model: `cline-pass/glm-5.2`
-
-No tokens are printed. Token refresh writes files mode `0600`.

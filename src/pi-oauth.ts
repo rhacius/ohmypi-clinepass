@@ -203,6 +203,7 @@ export function loginClinePass(callbacks: OAuthLoginCallbacks, fetcher: typeof f
 
 export function createClinePassOAuthProvider(options?: { modifyModels?: (models: Model<Api>[]) => Model<Api>[]; fetcher?: typeof fetch }): OAuthProviderInterface {
   const fetcher = options?.fetcher ?? fetch
+  const modifyModels = options?.modifyModels
   return {
     id: CLINEPASS_PROVIDER_ID,
     name: CLINEPASS_DISPLAY_NAME,
@@ -212,10 +213,10 @@ export function createClinePassOAuthProvider(options?: { modifyModels?: (models:
       if (!credentials.access?.trim()) throw new AuthError({ message: "Stored ClinePass credentials are missing access token. Run /login again." })
       return withWorkosPrefix(credentials.access.trim())
     },
-    ...(options?.modifyModels
+    ...(modifyModels
       ? {
           modifyModels(models: Model<Api>[]) {
-            return options.modifyModels!(models)
+            return modifyModels(models)
           },
         }
       : {}),

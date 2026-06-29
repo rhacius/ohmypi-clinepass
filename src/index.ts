@@ -8,7 +8,7 @@ export default async function (pi: ExtensionAPI): Promise<void> {
   const models = await Effect.runPromise(
     discoverClinePassModels().pipe(
       Effect.catchTag("UpstreamError", (error) => {
-        console.warn(`[pi-clinepass] Failed to fetch live ClinePass models; using fallback list. ${error.message}`)
+        process.stderr.write(`[pi-clinepass] Failed to fetch live ClinePass models; using fallback list. ${error.message}\n`)
         return Effect.succeed(fallbackClinePassModels())
       }),
     ),

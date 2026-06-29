@@ -79,10 +79,12 @@ export function fetchClinePassModelEntries(fetcher: typeof fetch = fetch) {
     if (!response.ok) {
       return yield* Effect.fail(new UpstreamError({ message: `ClinePass model list failed with HTTP ${response.status}`, status: response.status, body: text.slice(0, 500) }))
     }
-    const payload = yield* Effect.try({
-      try: () => JSON.parse(text) as RecommendedModelsResponse,
-      catch: (cause) => new UpstreamError({ message: "ClinePass model list returned invalid JSON", status: response.status, cause }),
-    })
+    let payload: RecommendedModelsResponse
+    try {
+      payload = JSON.parse(text) as RecommendedModelsResponse
+    } catch (cause) {
+      return yield* Effect.fail(new UpstreamError({ message: "ClinePass model list returned invalid JSON", status: response.status, cause }))
+    }
     const models = parseClinePassModelEntries(payload)
     return models.length > 0 ? models : [...FALLBACK_MODELS]
   })
