@@ -75,17 +75,17 @@ Compat flags include:
 
 ```ts
 {
-  thinkingFormat: "openrouter",
+  thinkingFormat: "together",
   cacheControlFormat: "anthropic",
   supportsUsageInStreaming: true,
   maxTokensField: "max_tokens",
-  supportsReasoningEffort: false,
+  supportsReasoningEffort: true,
   supportsStore: false,
   supportsDeveloperRole: false
 }
 ```
 
-Rationale: ClinePass gateway accepts top-level OpenRouter-style `reasoning` object. Live tests showed `{ reasoning: { exclude: true } }` and `{ reasoning: { enabled: false } }` suppress GLM reasoning, while z.ai-native `thinking: { type: "disabled" }` is ignored. Therefore this extension does **not** use `thinkingFormat: "zai"` for ClinePass GLM.
+Rationale: ClinePass gateway accepts top-level `reasoning` objects. Live tests showed `{ reasoning: { exclude: true } }` and `{ reasoning: { enabled: false } }` suppress GLM reasoning, while z.ai-native `thinking: { type: "disabled" }` is ignored. Pi's `openrouter` compat emits `{ reasoning: { effort: "none" } }` when thinking is off, which ClinePass does **not** suppress. Therefore this extension uses `thinkingFormat: "together"`: thinking off emits `{ reasoning: { enabled: false } }`; thinking on emits `{ reasoning: { enabled: true }, reasoning_effort: "low" | "medium" | "high" }`. It does **not** use `thinkingFormat: "zai"` or `"openrouter"` for ClinePass GLM.
 
 Prompt caching uses Pi's OpenAI-compatible `cacheControlFormat: "anthropic"` flag. This asks Pi to emit Anthropic-style cache-control markers where supported by its provider implementation; cache pricing is zero for subscription display.
 

@@ -37,13 +37,15 @@ describe("ClinePass model discovery/config", () => {
         "X-CLIENT-TYPE": "vscode",
       },
       compat: {
-        thinkingFormat: "openrouter",
+        thinkingFormat: "together",
         cacheControlFormat: "anthropic",
         supportsUsageInStreaming: true,
         maxTokensField: "max_tokens",
+        supportsReasoningEffort: true,
       },
     })
     expect(model.compat?.thinkingFormat).not.toBe("zai")
+    expect(model.compat?.thinkingFormat).not.toBe("openrouter")
   })
 
   it("dedupes discovered models", () => {
@@ -68,7 +70,7 @@ describe("Pi provider extension", () => {
     expect(config.models[0]).toMatchObject({
       api: "openai-completions",
       headers: { "X-CORE-VERSION": "4.0.0" },
-      compat: { thinkingFormat: "openrouter", cacheControlFormat: "anthropic" },
+      compat: { thinkingFormat: "together", cacheControlFormat: "anthropic" },
     })
     expect(typeof config.oauth.login).toBe("function")
     expect(typeof config.oauth.refreshToken).toBe("function")
