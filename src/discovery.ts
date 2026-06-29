@@ -5,9 +5,8 @@ import {
   CLINE_CLIENT_HEADERS,
   CLINEPASS_BASE_URL,
   CLINEPASS_COST,
-  CLINEPASS_DEFAULT_CONTEXT_WINDOW,
-  CLINEPASS_DEFAULT_MAX_TOKENS,
   CLINEPASS_PROVIDER_ID,
+  modelSpecsFor,
 } from "./constants.js"
 import { UpstreamError } from "./errors.js"
 
@@ -100,6 +99,7 @@ function displayName(entry: ClinePassModelEntry): string {
 }
 
 export function toClinePassModelConfig(entry: ClinePassModelEntry): Model<"openai-completions"> {
+  const specs = modelSpecsFor(entry.id)
   return {
     id: entry.id,
     name: displayName(entry),
@@ -116,8 +116,8 @@ export function toClinePassModelConfig(entry: ClinePassModelEntry): Model<"opena
     },
     input: ["text"],
     cost: { ...CLINEPASS_COST },
-    contextWindow: CLINEPASS_DEFAULT_CONTEXT_WINDOW,
-    maxTokens: CLINEPASS_DEFAULT_MAX_TOKENS,
+    contextWindow: specs.contextWindow,
+    maxTokens: specs.maxTokens,
     headers: { ...CLINE_CLIENT_HEADERS },
     compat: {
       supportsStore: false,

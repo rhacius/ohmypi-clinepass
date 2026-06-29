@@ -56,19 +56,19 @@ export function withWorkosPrefix(token: string): string {
   return token.startsWith("workos:") ? token : `workos:${token}`
 }
 
-function credentialsFromClineResponse(payload: ClineTokenResponse, fallbackRefresh?: string): OAuthCredentials {
+function credentialsFromClineResponse(payload: ClineTokenResponse, fallbackRefresh?: string): Effect.Effect<OAuthCredentials, AuthError> {
   const access = payload.data?.accessToken
   const refresh = payload.data?.refreshToken ?? fallbackRefresh
   if (!payload.success || !access || !refresh) {
-    throw new AuthError({ message: "Cline OAuth response missing tokens" })
+    return Effect.fail(new AuthError({ message: "Cline OAuth response missing tokens" }))
   }
-  return {
+  return Effect.succeed({
     access: withoutWorkosPrefix(access),
     refresh,
     expires: expiresAtMs(payload.data?.expiresAt),
     accountId: payload.data?.userInfo?.clineUserId ?? undefined,
     email: payload.data?.userInfo?.email ?? undefined,
-  }
+  })
 }
 
 function decodeJson<T>(response: Response, label: string) {
@@ -172,13 +172,13 @@ export function pollWorkOsDeviceToken(input: { deviceCode: string; expiresInSeco
 
 export function registerWorkOsTokens(tokens: WorkOsTokenResponse, fetcher: typeof fetch = fetch) {
   return postJson<ClineTokenResponse>(CLINE_AUTH_REGISTER_URL, { accessToken: tokens.access_token, refreshToken: tokens.refresh_token }, fetcher).pipe(
-    Effect.map((payload) => credentialsFromClineResponse(payload)),
+    Effect.flatMap((payload) => credentialsFromClineResponse(payload)),
   )
 }
 
 export function refreshClinePassCredentials(credentials: OAuthCredentials, fetcher: typeof fetch = fetch) {
   return postJson<ClineTokenResponse>(CLINE_REFRESH_URL, { refreshToken: credentials.refresh, grantType: "refresh_token" }, fetcher).pipe(
-    Effect.map((payload) => credentialsFromClineResponse(payload, credentials.refresh)),
+    Effect.flatMap((payload) => credentialsFromClineResponse(payload, credentials.refresh)),
   )
 }
 

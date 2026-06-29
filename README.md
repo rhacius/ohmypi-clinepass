@@ -74,12 +74,13 @@ It reads `clinePass[]`, dedupes model ids, and falls back to a small built-in li
 
 Known models include:
 
-- `cline-pass/glm-5.2`
-- `cline-pass/qwen3.7-max`
-- `cline-pass/qwen3.7-plus`
-- `cline-pass/kimi-k2.7-code`
-- `cline-pass/deepseek-v4-pro`
-- `cline-pass/deepseek-v4-flash`
+- `cline-pass/glm-5.2` — 1M context, 131K output
+- `cline-pass/qwen3.7-max` — 1M context, 66K output
+- `cline-pass/qwen3.7-plus` — 1M context, 66K output
+- `cline-pass/kimi-k2.7-code` — 256K context
+- `cline-pass/deepseek-v4-pro` — 1M context, 384K output
+- `cline-pass/deepseek-v4-flash` — 1M context, 384K output
+- `cline-pass/minimax-m3` — 1M context, 512K output
 
 ## OAuth behavior
 
@@ -103,8 +104,8 @@ Each model is registered with:
 {
   api: "openai-completions",
   input: ["text"],
-  contextWindow: 128000,
-  maxTokens: 8192,
+  contextWindow: 1_000_000, // per-model from vendor docs
+  maxTokens: 131_072,       // per-model from vendor docs
   reasoning: true,
   compat: {
     thinkingFormat: "together",

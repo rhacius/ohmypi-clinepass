@@ -30,8 +30,8 @@ describe("ClinePass model discovery/config", () => {
       reasoning: true,
       input: ["text"],
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: 128000,
-      maxTokens: 8192,
+      contextWindow: 1000000,
+      maxTokens: 131072,
       headers: {
         "User-Agent": "Cline/4.0.0",
         "X-CLIENT-TYPE": "vscode",
@@ -50,6 +50,20 @@ describe("ClinePass model discovery/config", () => {
 
   it("dedupes discovered models", () => {
     expect(buildClinePassModels([{ id: "cline-pass/glm-5.2" }, { id: "cline-pass/glm-5.2" }])).toHaveLength(1)
+  })
+
+  it("uses per-model context window and max tokens from specs table", () => {
+    const glm = toClinePassModelConfig({ id: "cline-pass/glm-5.2" })
+    expect(glm.contextWindow).toBe(1_000_000)
+    expect(glm.maxTokens).toBe(131_072)
+
+    const kimi = toClinePassModelConfig({ id: "cline-pass/kimi-k2.7-code" })
+    expect(kimi.contextWindow).toBe(262_144)
+    expect(kimi.maxTokens).toBe(8_192)
+
+    const unknown = toClinePassModelConfig({ id: "cline-pass/some-new-model" })
+    expect(unknown.contextWindow).toBe(128_000)
+    expect(unknown.maxTokens).toBe(8_192)
   })
 })
 
