@@ -2,10 +2,22 @@
   "name": "@codewithkenzo/pi-clinepass",
   "version": "0.1.0",
   "private": true,
+  "description": "Pi provider extension for ClinePass subscription models.",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi",
+    "clinepass",
+    "provider"
+  ],
   "type": "module",
   "bin": {
     "clinepass-proxy": "./src/cli.ts"
   },
+  "files": [
+    "src",
+    "README.md"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "bun test",
@@ -14,8 +26,19 @@
   "dependencies": {
     "effect": "^4.0.0-beta.66"
   },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-ai": "*"
+  },
   "devDependencies": {
+    "@earendil-works/pi-ai": "^0.80.2",
+    "@earendil-works/pi-coding-agent": "^0.80.2",
     "@types/bun": "latest",
     "typescript": "latest"
+  },
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
   }
 }
