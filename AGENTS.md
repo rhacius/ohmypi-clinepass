@@ -10,18 +10,20 @@
 OMP startup
   └─ src/index.ts
        ├─ freshCachedModels()  ── fast path if disk cache is fresh
-       └─ fetchClinePassModelsPayload() / discoverClinePassModels()
-             ├─ fetchWithTimeout + backoff retry  ── GET /api/v1/ai/cline/recommended-models
-             ├─ parseClinePassModelEntries()       ── validate/dedupe "cline-pass/*" entries
-             ├─ buildClinePassModels()             ── map to pi-ai Model configs
-             └─ writeCachedModels()                ── persist raw payload
+       └─ loadModelsFromNetwork()
+             ├─ fetchClinePassModelsPayloadForCache()  ── GET /api/v1/ai/cline/recommended-models
+             │    └─ fetchClinePassModelEntries()
+             ├─ parseClinePassModelEntries()           ── validate/dedupe "cline-pass/*" entries
+             ├─ buildClinePassModels()                 ── map to pi-ai Model configs
+             ├─ writeCachedModels()                    ── persist raw payload
+             └─ updateCachedModelsInBackground()     ── seed background refresh
        └─ registerProvider({ baseUrl, models, oauth })
 
 OAuth login
   └─ loginClinePass() / createClinePassOAuthProvider()
-       ├─ startClineDeviceAuth()   ── WorkOS /authorize/device
-       ├─ pollWorkOsDeviceToken()  ── WorkOS /authenticate
-       ├─ registerWorkOsTokens()   ── Cline /auth/register
+       ├─ startClineDeviceAuth()   ── WorkOS /authorize/device (internal helper)
+       ├─ pollWorkOsDeviceToken()  ── WorkOS /authenticate (internal helper)
+       ├─ registerWorkOsTokens()   ── Cline /auth/register (internal helper)
        └─ validateClinePassToken() ── Cline /users/me (Bearer workos:<token>)
 ```
 
@@ -36,7 +38,6 @@ OAuth login
 |-----------|---------|
 | `src/` | All source. Flat structure — no subdirectories. |
 | `test/` | `bun:test` test suites mirroring `src/` modules. |
-| `assets/` | Project images (e.g. `ohmypi-clinepass-hero.png`). |
 | project root | `package.json`, `tsconfig.json`, `bun.lock`, `README.md`. |
 
 ## Development Commands
@@ -68,7 +69,6 @@ There is no build or bundle step. Bun resolves `.ts` files at runtime, and TypeS
 
 ### Error handling
 - All domain errors are `Data.TaggedError` from `effect` (`src/errors.ts`):
-  - `TokenFileError` — token file I/O.
   - `AuthError` — OAuth/auth failures (optional `status`).
   - `UpstreamError` — Cline API failures (optional `status`, `body`).
 - Catch specific tags with `Effect.catchTag(...)` rather than broad catches.

@@ -2,7 +2,6 @@ import { homedir } from "node:os"
 import { join } from "node:path"
 
 export const CLINE_API_BASE_URL = "https://api.cline.bot"
-export const CLINE_CHAT_URL = `${CLINE_API_BASE_URL}/api/v1/chat/completions`
 export const CLINE_REFRESH_URL = `${CLINE_API_BASE_URL}/api/v1/auth/refresh`
 export const CLINE_AUTH_REGISTER_URL = `${CLINE_API_BASE_URL}/api/v1/auth/register`
 export const CLINE_CURRENT_USER_URL = `${CLINE_API_BASE_URL}/api/v1/users/me`
@@ -22,10 +21,6 @@ export const CLINE_RETRY_DELAY_MS = Number(process.env.CLINE_RETRY_DELAY_MS?.tri
 
 /** On-disk models cache: TTL and file location. */
 export const CLINEPASS_MODELS_CACHE_TTL_MS = Number(process.env.CLINEPASS_MODELS_CACHE_TTL_MS?.trim()) || 24 * 60 * 60 * 1000
-
-export function defaultProviderSettingsPath(): string {
-  return process.env.CLINE_PROVIDER_SETTINGS_PATH?.trim() || join(homedir(), ".cline", "data", "settings", "providers.json")
-}
 
 export function defaultModelsCachePath(): string {
   return process.env.CLINEPASS_MODELS_CACHE_PATH?.trim() || join(homedir(), ".cline", "data", "cache", "clinepass-models.json")

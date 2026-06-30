@@ -123,7 +123,7 @@ function postJson<T>(url: string, value: unknown, fetcher: typeof fetch) {
   })
 }
 
-export function startClineDeviceAuth(fetcher: typeof fetch = fetch) {
+function startClineDeviceAuth(fetcher: typeof fetch = fetch) {
   return Effect.gen(function* () {
     const payload = yield* postForm<DeviceAuthResponse>(WORKOS_DEVICE_AUTH_URL, new URLSearchParams({ client_id: WORKOS_CLIENT_ID }), fetcher)
     if (!payload.device_code || !payload.user_code || !payload.verification_uri) {
@@ -144,7 +144,7 @@ function sleep(ms: number) {
   return Effect.promise(() => new Promise<void>((resolve) => setTimeout(resolve, ms)))
 }
 
-export function pollWorkOsDeviceToken(input: { deviceCode: string; expiresInSeconds: number; intervalSeconds: number; callbacks?: ClinePassOAuthLoginCallbacks; fetcher?: typeof fetch }) {
+function pollWorkOsDeviceToken(input: { deviceCode: string; expiresInSeconds: number; intervalSeconds: number; callbacks?: ClinePassOAuthLoginCallbacks; fetcher?: typeof fetch }) {
   return Effect.gen(function* () {
     const fetcher = input.fetcher ?? fetch
     const deadline = Date.now() + input.expiresInSeconds * 1000
@@ -217,7 +217,7 @@ function validateClinePassToken(credentials: OAuthCredentials, fetcher: typeof f
   )
 }
 
-export function registerWorkOsTokens(tokens: WorkOsTokenResponse, fetcher: typeof fetch = fetch) {
+function registerWorkOsTokens(tokens: WorkOsTokenResponse, fetcher: typeof fetch = fetch) {
   return postJson<ClineTokenResponse>(CLINE_AUTH_REGISTER_URL, { accessToken: tokens.access_token, refreshToken: tokens.refresh_token }, fetcher).pipe(
     Effect.flatMap((payload) => credentialsFromClineResponse(payload)),
     Effect.flatMap((credentials) => validateClinePassToken(credentials, fetcher)),

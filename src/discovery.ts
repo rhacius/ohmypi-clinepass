@@ -126,21 +126,6 @@ export function fetchClinePassModelEntries(fetcher: typeof fetch = fetch) {
   })
 }
 
-/**
- * Fetches the raw recommended-models payload with timeout + backoff retry.
- * Used by the on-disk cache background refresh; does not apply fallbacks.
- */
-export async function fetchClinePassModelsPayload(fetcher: typeof fetch = fetch): Promise<RecommendedModelsResponse> {
-  return backoff(async () => {
-    const response = await fetchWithTimeout(CLINE_MODELS_URL, CLINE_MODELS_TIMEOUT_MS, { headers: { accept: "application/json" } }, fetcher)
-    const text = await response.text()
-    if (!response.ok) {
-      throw new ModelsHttpError(response.status, `ClinePass model list failed with HTTP ${response.status}`, text.slice(0, 500))
-    }
-    return JSON.parse(text) as RecommendedModelsResponse
-  }, { retries: CLINE_RETRY_COUNT, delayMs: CLINE_RETRY_DELAY_MS, shouldRetry: shouldRetryModels })
-}
-
 function isReasoningModel(id: string): boolean {
   const normalized = id.toLowerCase()
   return /glm|qwen|minimax|mimo|kimi|deepseek/.test(normalized)
@@ -216,10 +201,6 @@ export function toClinePassModelConfig(entry: ClinePassModelEntry): ClinePassMod
 
 export function buildClinePassModels(entries: readonly ClinePassModelEntry[]): ClinePassModelConfig[] {
   return uniqueModels(entries).map((entry) => toClinePassModelConfig(entry))
-}
-
-export function discoverClinePassModels(fetcher: typeof fetch = fetch) {
-  return fetchClinePassModelEntries(fetcher).pipe(Effect.map(buildClinePassModels))
 }
 
 export function fallbackClinePassModels() {
