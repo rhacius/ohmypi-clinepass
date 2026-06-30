@@ -1,6 +1,6 @@
-import type { Api, Model } from "@earendil-works/pi-ai"
 import { Effect } from "effect"
-import { CLINE_MODELS_URL } from "./config.js"
+import { backoff } from "./backoff.js"
+import { CLINE_MODELS_TIMEOUT_MS, CLINE_MODELS_URL, CLINE_RETRY_COUNT, CLINE_RETRY_DELAY_MS } from "./config.js"
 import {
   CLINE_CLIENT_HEADERS,
   CLINEPASS_BASE_URL,
@@ -9,6 +9,18 @@ import {
   modelSpecsFor,
 } from "./constants.js"
 import { UpstreamError } from "./errors.js"
+import { fetchWithTimeout } from "./http.js"
+
+class ModelsHttpError {
+  readonly status: number
+  readonly message: string
+  readonly cause?: unknown
+  constructor(status: number, message: string, cause?: unknown) {
+    this.status = status
+    this.message = message
+    this.cause = cause
+  }
+}
 
 export interface RecommendedModelsResponse {
   clinePass?: Array<{ id: string; name?: string; description?: string }>
@@ -65,28 +77,68 @@ export function parseClinePassModelEntries(payload: RecommendedModelsResponse): 
   }))
 }
 
+/** Retry on transient 429/5xx and network errors; bail otherwise. */
+function shouldRetryModels(error: unknown): boolean {
+  if (error instanceof ModelsHttpError) {
+    return error.status === 429 || error.status >= 500
+  }
+  return true
+}
+
 export function fetchClinePassModelEntries(fetcher: typeof fetch = fetch) {
   return Effect.gen(function* () {
-    const response = yield* Effect.tryPromise({
-      try: () => fetcher(CLINE_MODELS_URL, { headers: { accept: "application/json" } }),
-      catch: (cause) => new UpstreamError({ message: "Failed to fetch ClinePass model list", cause }),
-    })
-    const text = yield* Effect.tryPromise({
-      try: () => response.text(),
-      catch: (cause) => new UpstreamError({ message: "Failed to read ClinePass model response", status: response.status, cause }),
-    })
-    if (!response.ok) {
-      return yield* Effect.fail(new UpstreamError({ message: `ClinePass model list failed with HTTP ${response.status}`, status: response.status, body: text.slice(0, 500) }))
-    }
     let payload: RecommendedModelsResponse
     try {
-      payload = JSON.parse(text) as RecommendedModelsResponse
-    } catch (cause) {
-      return yield* Effect.fail(new UpstreamError({ message: "ClinePass model list returned invalid JSON", status: response.status, cause }))
+      payload = yield* Effect.promise(() =>
+        backoff(async () => {
+          const response = await fetchWithTimeout(
+            CLINE_MODELS_URL,
+            CLINE_MODELS_TIMEOUT_MS,
+            { headers: { accept: "application/json" } },
+            fetcher,
+          ).catch((cause) => {
+            throw new ModelsHttpError(0, "Failed to fetch ClinePass model list", cause)
+          })
+          const text = await response.text().catch((cause) => {
+            throw new ModelsHttpError(response.status, "Failed to read ClinePass model response", cause)
+          })
+          if (!response.ok) {
+            throw new ModelsHttpError(response.status, `ClinePass model list failed with HTTP ${response.status}`, text.slice(0, 500))
+          }
+          try {
+            return JSON.parse(text) as RecommendedModelsResponse
+          } catch (cause) {
+            throw new ModelsHttpError(response.status, "ClinePass model list returned invalid JSON", cause)
+          }
+        }, { retries: CLINE_RETRY_COUNT, delayMs: CLINE_RETRY_DELAY_MS, shouldRetry: shouldRetryModels }),
+      )
+    } catch (error) {
+      const http = error instanceof ModelsHttpError ? error : undefined
+      return yield* Effect.fail(new UpstreamError({
+        message: http?.message ?? "Failed to fetch ClinePass model list",
+        status: http?.status || undefined,
+        body: http?.message,
+        cause: http?.cause ?? error,
+      }))
     }
     const models = parseClinePassModelEntries(payload)
     return models.length > 0 ? models : [...FALLBACK_MODELS]
   })
+}
+
+/**
+ * Fetches the raw recommended-models payload with timeout + backoff retry.
+ * Used by the on-disk cache background refresh; does not apply fallbacks.
+ */
+export async function fetchClinePassModelsPayload(fetcher: typeof fetch = fetch): Promise<RecommendedModelsResponse> {
+  return backoff(async () => {
+    const response = await fetchWithTimeout(CLINE_MODELS_URL, CLINE_MODELS_TIMEOUT_MS, { headers: { accept: "application/json" } }, fetcher)
+    const text = await response.text()
+    if (!response.ok) {
+      throw new ModelsHttpError(response.status, `ClinePass model list failed with HTTP ${response.status}`, text.slice(0, 500))
+    }
+    return JSON.parse(text) as RecommendedModelsResponse
+  }, { retries: CLINE_RETRY_COUNT, delayMs: CLINE_RETRY_DELAY_MS, shouldRetry: shouldRetryModels })
 }
 
 function isReasoningModel(id: string): boolean {
@@ -98,7 +150,35 @@ function displayName(entry: ClinePassModelEntry): string {
   return entry.name?.trim() || entry.id
 }
 
-export function toClinePassModelConfig(entry: ClinePassModelEntry): Model<"openai-completions"> {
+export interface ClinePassModelConfig {
+  id: string
+  name: string
+  provider: string
+  baseUrl: string
+  api: "openai-completions"
+  reasoning: boolean
+  thinkingLevelMap: { minimal: string; low: string; medium: string; high: string; xhigh: string }
+  input: ["text"]
+  cost: { input: number; output: number; cacheRead: number; cacheWrite: number }
+  contextWindow: number
+  maxTokens: number
+  headers: Record<string, string>
+  compat: {
+    supportsStore: boolean
+    supportsDeveloperRole: boolean
+    supportsReasoningEffort: boolean
+    supportsUsageInStreaming: boolean
+    maxTokensField: string
+    requiresToolResultName: boolean
+    supportsStrictMode: boolean
+    thinkingFormat: string
+    reasoningDisableMode: string
+    cacheControlFormat: string
+  }
+}
+
+export function toClinePassModelConfig(entry: ClinePassModelEntry): ClinePassModelConfig {
+
   const specs = modelSpecsFor(entry.id)
   return {
     id: entry.id,
@@ -127,14 +207,14 @@ export function toClinePassModelConfig(entry: ClinePassModelEntry): Model<"opena
       maxTokensField: "max_tokens",
       requiresToolResultName: false,
       supportsStrictMode: true,
-      thinkingFormat: "together",
+      thinkingFormat: "openrouter",
+      reasoningDisableMode: "openrouter-enabled-false",
       cacheControlFormat: "anthropic",
-      supportsLongCacheRetention: true,
     },
   }
 }
 
-export function buildClinePassModels(entries: readonly ClinePassModelEntry[]): Model<Api>[] {
+export function buildClinePassModels(entries: readonly ClinePassModelEntry[]): ClinePassModelConfig[] {
   return uniqueModels(entries).map((entry) => toClinePassModelConfig(entry))
 }
 
@@ -142,6 +222,6 @@ export function discoverClinePassModels(fetcher: typeof fetch = fetch) {
   return fetchClinePassModelEntries(fetcher).pipe(Effect.map(buildClinePassModels))
 }
 
-export function fallbackClinePassModels(): Model<Api>[] {
+export function fallbackClinePassModels() {
   return buildClinePassModels(FALLBACK_MODELS)
 }

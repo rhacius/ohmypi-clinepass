@@ -1,8 +1,9 @@
-import type { Api, Model, OAuthCredentials, OAuthLoginCallbacks, OAuthProviderInterface } from "@earendil-works/pi-ai"
+import type { Api, Model, OAuthCredentials, OAuthLoginCallbacks, OAuthProviderInterface } from "@oh-my-pi/pi-ai"
 import { Effect } from "effect"
-import { CLINE_AUTH_REGISTER_URL, CLINE_REFRESH_URL, WORKOS_AUTHENTICATE_URL, WORKOS_CLIENT_ID, WORKOS_DEVICE_AUTH_URL } from "./config.js"
+import { CLINE_AUTH_REGISTER_URL, CLINE_AUTH_TIMEOUT_MS, CLINE_CURRENT_USER_URL, CLINE_REFRESH_URL, WORKOS_AUTHENTICATE_URL, WORKOS_CLIENT_ID, WORKOS_DEVICE_AUTH_URL } from "./config.js"
 import { CLINEPASS_DISPLAY_NAME, CLINEPASS_PROVIDER_ID } from "./constants.js"
 import { AuthError } from "./errors.js"
+import { fetchWithTimeout } from "./http.js"
 
 const DEFAULT_EXPIRES_IN_SECONDS = 300
 const DEFAULT_POLL_INTERVAL_SECONDS = 5
@@ -40,6 +41,22 @@ type ClineTokenResponse = {
     }
     [key: string]: unknown
   }
+}
+
+type ClineUserEnvelope = {
+  success?: boolean
+  data?: { id?: string; email?: string; [key: string]: unknown }
+}
+
+type DeviceCodeInfo = {
+  userCode: string
+  verificationUri: string
+  intervalSeconds?: number
+  expiresInSeconds?: number
+}
+
+type ClinePassOAuthLoginCallbacks = OAuthLoginCallbacks & {
+  onDeviceCode?: (info: DeviceCodeInfo) => void
 }
 
 function expiresAtMs(value?: string): number {
@@ -81,7 +98,7 @@ function decodeJson<T>(response: Response, label: string) {
 function postForm<T>(url: string, body: URLSearchParams, fetcher: typeof fetch) {
   return Effect.gen(function* () {
     const response = yield* Effect.tryPromise({
-      try: () => fetcher(url, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body }),
+      try: () => fetchWithTimeout(url, CLINE_AUTH_TIMEOUT_MS, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body }, fetcher),
       catch: (cause) => new AuthError({ message: "OAuth network request failed", cause }),
     })
     const payload = yield* decodeJson<T & { error?: string; error_description?: string }>(response, "OAuth request")
@@ -95,7 +112,7 @@ function postForm<T>(url: string, body: URLSearchParams, fetcher: typeof fetch) 
 function postJson<T>(url: string, value: unknown, fetcher: typeof fetch) {
   return Effect.gen(function* () {
     const response = yield* Effect.tryPromise({
-      try: () => fetcher(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(value) }),
+      try: () => fetchWithTimeout(url, CLINE_AUTH_TIMEOUT_MS, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(value) }, fetcher),
       catch: (cause) => new AuthError({ message: "Cline OAuth request failed", cause }),
     })
     const payload = yield* decodeJson<T>(response, "Cline OAuth request")
@@ -127,7 +144,7 @@ function sleep(ms: number) {
   return Effect.promise(() => new Promise<void>((resolve) => setTimeout(resolve, ms)))
 }
 
-export function pollWorkOsDeviceToken(input: { deviceCode: string; expiresInSeconds: number; intervalSeconds: number; callbacks?: OAuthLoginCallbacks; fetcher?: typeof fetch }) {
+export function pollWorkOsDeviceToken(input: { deviceCode: string; expiresInSeconds: number; intervalSeconds: number; callbacks?: ClinePassOAuthLoginCallbacks; fetcher?: typeof fetch }) {
   return Effect.gen(function* () {
     const fetcher = input.fetcher ?? fetch
     const deadline = Date.now() + input.expiresInSeconds * 1000
@@ -136,7 +153,7 @@ export function pollWorkOsDeviceToken(input: { deviceCode: string; expiresInSeco
     while (Date.now() < deadline) {
       if (input.callbacks?.signal?.aborted) return yield* Effect.fail(new AuthError({ message: "ClinePass login cancelled" }))
       const response = yield* Effect.tryPromise({
-        try: () => fetcher(WORKOS_AUTHENTICATE_URL, {
+        try: () => fetchWithTimeout(WORKOS_AUTHENTICATE_URL, CLINE_AUTH_TIMEOUT_MS, {
           method: "POST",
           headers: { "content-type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams({
@@ -144,7 +161,7 @@ export function pollWorkOsDeviceToken(input: { deviceCode: string; expiresInSeco
             device_code: input.deviceCode,
             client_id: WORKOS_CLIENT_ID,
           }),
-        }),
+        }, fetcher),
         catch: (cause) => new AuthError({ message: "WorkOS polling failed", cause }),
       })
       const payload = yield* decodeJson<WorkOsTokenResponse>(response, "WorkOS polling")
@@ -170,22 +187,54 @@ export function pollWorkOsDeviceToken(input: { deviceCode: string; expiresInSeco
   })
 }
 
+/**
+ * Validates a freshly issued/refreshed Cline access token via GET /users/me.
+ * Non-fatal: a failure surfaces a stderr warning but does not reject the
+ * credentials, since the token envelope was already validated by the issuer.
+ */
+function validateClinePassToken(credentials: OAuthCredentials, fetcher: typeof fetch) {
+  return Effect.gen(function* () {
+    const response = yield* Effect.tryPromise({
+      try: () => fetchWithTimeout(CLINE_CURRENT_USER_URL, CLINE_AUTH_TIMEOUT_MS, {
+        method: "GET",
+        headers: { accept: "application/json", authorization: `Bearer ${withWorkosPrefix(credentials.access)}` },
+      }, fetcher),
+      catch: (cause) => new AuthError({ message: "ClinePass token validation request failed", cause }),
+    })
+    if (!response.ok) {
+      return yield* Effect.fail(new AuthError({ message: `ClinePass token validation failed with HTTP ${response.status}`, status: response.status }))
+    }
+    const payload = yield* decodeJson<ClineUserEnvelope>(response, "ClinePass token validation")
+    if (!payload.success || !payload.data) {
+      return yield* Effect.fail(new AuthError({ message: "ClinePass token validation returned invalid response" }))
+    }
+    return credentials
+  }).pipe(
+    Effect.catchTag("AuthError", (error) => {
+      process.stderr.write(`[ohmypi-clinepass] Token validation warning: ${error.message}\n`)
+      return Effect.succeed(credentials)
+    }),
+  )
+}
+
 export function registerWorkOsTokens(tokens: WorkOsTokenResponse, fetcher: typeof fetch = fetch) {
   return postJson<ClineTokenResponse>(CLINE_AUTH_REGISTER_URL, { accessToken: tokens.access_token, refreshToken: tokens.refresh_token }, fetcher).pipe(
     Effect.flatMap((payload) => credentialsFromClineResponse(payload)),
+    Effect.flatMap((credentials) => validateClinePassToken(credentials, fetcher)),
   )
 }
 
 export function refreshClinePassCredentials(credentials: OAuthCredentials, fetcher: typeof fetch = fetch) {
   return postJson<ClineTokenResponse>(CLINE_REFRESH_URL, { refreshToken: credentials.refresh, grantType: "refresh_token" }, fetcher).pipe(
     Effect.flatMap((payload) => credentialsFromClineResponse(payload, credentials.refresh)),
+    Effect.flatMap((refreshed) => validateClinePassToken(refreshed, fetcher)),
   )
 }
 
-export function loginClinePass(callbacks: OAuthLoginCallbacks, fetcher: typeof fetch = fetch) {
+export function loginClinePass(callbacks: ClinePassOAuthLoginCallbacks, fetcher: typeof fetch = fetch) {
   return Effect.gen(function* () {
     const device = yield* startClineDeviceAuth(fetcher)
-    callbacks.onDeviceCode({
+    callbacks.onDeviceCode?.({
       userCode: device.userCode,
       verificationUri: device.verificationUri,
       intervalSeconds: device.intervalSeconds,

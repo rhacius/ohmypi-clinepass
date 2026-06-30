@@ -26,13 +26,21 @@ export function modelSpecsFor(id: string): { contextWindow: number; maxTokens: n
   return CLINEPASS_MODEL_SPECS[id] ?? { contextWindow: CLINEPASS_DEFAULT_CONTEXT_WINDOW, maxTokens: CLINEPASS_DEFAULT_MAX_TOKENS }
 }
 
+const CLINE_CLIENT_VERSION = "4.0.4"
+
+/**
+ * Cline client identification headers, matching Cline VS Code ext v4.0.4
+ * `buildBasicClineHeaders()`. X-PLATFORM is derived from process.platform;
+ * X-PLATFORM-VERSION stays "unknown" — the legitimate Cline fallback when no
+ * host IDE is present (this package runs outside an editor).
+ */
 export const CLINE_CLIENT_HEADERS = {
-  "User-Agent": "Cline/4.0.0",
-  "X-PLATFORM": "linux",
+  "User-Agent": `Cline/${CLINE_CLIENT_VERSION}`,
+  "X-PLATFORM": process.platform,
   "X-PLATFORM-VERSION": "unknown",
   "X-CLIENT-TYPE": "vscode",
-  "X-CLIENT-VERSION": "4.0.0",
-  "X-CORE-VERSION": "4.0.0",
+  "X-CLIENT-VERSION": CLINE_CLIENT_VERSION,
+  "X-CORE-VERSION": CLINE_CLIENT_VERSION,
 } as const
 
 export const CLINEPASS_COST = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } as const

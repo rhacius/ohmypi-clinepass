@@ -12,16 +12,20 @@ function jsonResponse(value: unknown, status = 200) {
   return new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json" } })
 }
 
-describe("ClinePass Pi OAuth", () => {
-  it("prefixes API key for Pi provider auth", () => {
+describe("ClinePass OMP OAuth", () => {
+  it("prefixes API key for OMP provider auth", () => {
     const oauth = createClinePassOAuthProvider()
     expect(withWorkosPrefix("abc")).toBe("workos:abc")
     expect(withWorkosPrefix("workos:abc")).toBe("workos:abc")
-    expect(oauth.getApiKey({ access: "access-token", refresh: "refresh-token", expires: Date.now() + 1000 })).toBe("workos:access-token")
+    expect(oauth.getApiKey?.({ access: "access-token", refresh: "refresh-token", expires: Date.now() + 1000 })).toBe("workos:access-token")
   })
 
   it("refreshes Cline OAuth credentials", async () => {
-    const fetcher = mock(async (_url: string | URL | Request, init?: RequestInit) => {
+    const fetcher = mock(async (url: string | URL | Request, init?: RequestInit) => {
+      const text = url.toString()
+      if (text.includes("users/me")) {
+        return jsonResponse({ success: true, data: { id: "user-1", email: "kenzo@example.com" } })
+      }
       expect(JSON.parse(String(init?.body))).toEqual({ refreshToken: "old-refresh", grantType: "refresh_token" })
       return jsonResponse({
         success: true,
@@ -68,6 +72,9 @@ describe("ClinePass Pi OAuth", () => {
           },
         })
       }
+      if (text.includes("users/me")) {
+        return jsonResponse({ success: true, data: { id: "user-2", email: "dev@example.com" } })
+      }
       return jsonResponse({ error: "unexpected" }, 500)
     }) as unknown as typeof fetch
     const onDeviceCode = mock(() => undefined)
@@ -77,7 +84,6 @@ describe("ClinePass Pi OAuth", () => {
       onDeviceCode,
       onAuth,
       onPrompt: async () => "",
-      onSelect: async () => undefined,
       onProgress: mock(() => undefined),
     }, fetcher))
 
@@ -90,6 +96,56 @@ describe("ClinePass Pi OAuth", () => {
     })
     const authCalls = onAuth.mock.calls as unknown as Array<[Record<string, unknown>]>
     expect(authCalls[0]?.[0]).toMatchObject({ url: "https://authkit.cline.bot/device?user_code=USER-CODE" })
-    expect(calls).toHaveLength(3)
+    expect(calls).toHaveLength(4)
+  })
+
+  it("supports Oh My Pi callbacks without onDeviceCode", async () => {
+    const calls: string[] = []
+    const fetcher = mock(async (url: string | URL | Request) => {
+      const text = url.toString()
+      calls.push(text)
+      if (text.includes("authorize/device")) {
+        return jsonResponse({
+          device_code: "device-code",
+          user_code: "USER-CODE",
+          verification_uri: "https://authkit.cline.bot/device",
+          verification_uri_complete: "https://authkit.cline.bot/device?user_code=USER-CODE",
+          expires_in: 300,
+          interval: 1,
+        })
+      }
+      if (text.includes("authenticate")) {
+        return jsonResponse({ access_token: "workos-access", refresh_token: "workos-refresh" })
+      }
+      if (text.includes("auth/register")) {
+        return jsonResponse({
+          success: true,
+          data: {
+            accessToken: "cline-access",
+            refreshToken: "cline-refresh",
+            expiresAt: "2030-01-01T00:00:00.000Z",
+            userInfo: { clineUserId: "acct_omp" },
+          },
+        })
+      }
+      if (text.includes("users/me")) {
+        return jsonResponse({ success: true, data: { id: "user-omp", email: "omp@example.com" } })
+      }
+      return jsonResponse({ error: "unexpected" }, 500)
+    }) as unknown as typeof fetch
+    const onAuth = mock(() => undefined)
+
+    const credentials = await Effect.runPromise(loginClinePass({
+      onAuth,
+      onPrompt: async () => "",
+      onProgress: mock(() => undefined),
+    }, fetcher))
+
+    expect(credentials).toMatchObject({ access: "cline-access", refresh: "cline-refresh", accountId: "acct_omp" })
+    expect(onAuth).toHaveBeenCalledWith({
+      url: "https://authkit.cline.bot/device?user_code=USER-CODE",
+      instructions: "Open the Cline auth page and enter code USER-CODE",
+    })
+    expect(calls).toHaveLength(4)
   })
 })

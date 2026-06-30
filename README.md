@@ -1,21 +1,21 @@
-# pi-clinepass
+# ohmypi-clinepass
 
-![pi-clinepass](assets/pi-clinepass-hero.png)
+![ohmypi-clinepass](assets/pi-clinepass-hero.png)
 
-ClinePass models inside Pi through Pi's native provider system.
+ClinePass models inside Oh My Pi through OMP's native provider system.
 
-`pi-clinepass` registers a real `clinepass` provider with OAuth device login, live ClinePass model discovery, Pi-compatible OpenAI chat transport, prompt cache markers, and reasoning controls tuned for GLM/Qwen/Kimi/DeepSeek-style models.
+`ohmypi-clinepass` registers a real `clinepass` provider with OAuth device login, live ClinePass model discovery, OMP-compatible OpenAI chat transport, prompt cache markers, and reasoning controls tuned for GLM/Qwen/Kimi/DeepSeek-style models.
 
 ## What works
 
 - Provider id: `clinepass`
 - Primary model: `cline-pass/glm-5.2`
-- Auth: Pi `/login` OAuth device-code flow
+- Auth: OMP `/login` OAuth flow using the Cline/WorkOS device-code flow
 - Model list: live Cline recommended-models endpoint, filtered to `clinePass[]`
 - Transport: `openai-completions` against `https://api.cline.bot/api/v1`
-- Token handling: Pi stores OAuth credentials; this package returns `workos:<access>` only to Pi's provider auth path
-- Reasoning: Pi thinking levels map to ClinePass-compatible `reasoning` params
-- Prompt caching: Pi emits Anthropic-style cache-control markers where supported
+- Token handling: OMP stores OAuth credentials; this package returns `workos:<access>` only to OMP's provider auth path
+- Reasoning: OMP thinking levels map to ClinePass-compatible `reasoning` params
+- Prompt caching: OMP emits Anthropic-style cache-control markers where supported
 
 No API key required. No tokens printed.
 
@@ -27,28 +27,26 @@ From a checkout:
 bun install
 bun run typecheck
 bun test
-pi install .
+omp install .
 ```
 
-From GitHub:
+From GitHub after pushing this fork:
 
 ```bash
-pi install git:github.com/codewithkenzo/pi-clinepass
+omp install github:<user>/ohmypi-clinepass
 ```
 
-Or add a local checkout manually to `~/.pi/agent/settings.json`:
+Or install a local checkout explicitly:
 
-```json
-{
-  "packages": ["../../dev/pi-clinepass"]
-}
+```bash
+omp plugin install ./path/to/ohmypi-clinepass
 ```
 
-Then restart Pi or run `/reload`.
+Then restart OMP or run the extension reload flow if available.
 
 ## Login + use
 
-In Pi:
+In OMP:
 
 1. Run `/login`
 2. Choose **ClinePass**
@@ -59,7 +57,7 @@ In Pi:
 Exact model string for CLI/non-interactive runs:
 
 ```bash
-pi --model clinepass/cline-pass/glm-5.2 "Say OK"
+omp --model clinepass/cline-pass/glm-5.2 "Say OK"
 ```
 
 ## Model discovery
@@ -87,10 +85,10 @@ Known models include:
 Flow:
 
 1. Start WorkOS device auth with Cline's production client id.
-2. Show Pi device-code/browser callbacks.
+2. Show the OMP browser callback with the Cline device code instructions.
 3. Poll WorkOS until approved.
 4. Register WorkOS tokens with Cline `/api/v1/auth/register`.
-5. Return Pi `OAuthCredentials` with Cline access/refresh/expires metadata.
+5. Return OMP `OAuthCredentials` with Cline access/refresh/expires metadata.
 6. Refresh through Cline `/api/v1/auth/refresh` when needed.
 7. Send requests with `Authorization: Bearer workos:<access>`.
 
@@ -108,7 +106,8 @@ Each model is registered with:
   maxTokens: 131_072,       // per-model from vendor docs
   reasoning: true,
   compat: {
-    thinkingFormat: "together",
+    thinkingFormat: "openrouter",
+    reasoningDisableMode: "openrouter-enabled-false",
     cacheControlFormat: "anthropic",
     supportsUsageInStreaming: true,
     supportsReasoningEffort: true,
@@ -119,11 +118,11 @@ Each model is registered with:
 }
 ```
 
-Why `thinkingFormat: "together"`:
+Why `thinkingFormat: "openrouter"` plus `reasoningDisableMode: "openrouter-enabled-false"`:
 
 - ClinePass accepts top-level `reasoning` objects.
 - `{ reasoning: { enabled: false } }` suppresses GLM reasoning.
-- Pi's OpenRouter-style off state emits `{ reasoning: { effort: "none" } }`, which ClinePass does not suppress.
+- OMP's default OpenRouter off state can emit `{ reasoning: { effort: "none" } }`, which ClinePass does not suppress.
 - z.ai-native `thinking: { type: "disabled" }` is also ignored by ClinePass.
 
 ## Development
@@ -137,17 +136,20 @@ bun test
 Useful smoke test after local install:
 
 ```bash
-pi --model clinepass/cline-pass/glm-5.2 -p "Reply exactly OK"
+omp --model clinepass/cline-pass/glm-5.2 -p "Reply exactly OK"
 ```
 
 If it says `No API key found for clinepass`, the extension loaded correctly; run `/login`.
 
 ## Package surface
 
-Pi loads this package through:
+OMP loads this package through either manifest field:
 
 ```json
 {
+  "omp": {
+    "extensions": ["./src/index.ts"]
+  },
   "pi": {
     "extensions": ["./src/index.ts"]
   }

@@ -33,11 +33,12 @@ describe("ClinePass model discovery/config", () => {
       contextWindow: 1000000,
       maxTokens: 131072,
       headers: {
-        "User-Agent": "Cline/4.0.0",
+        "User-Agent": "Cline/4.0.4",
         "X-CLIENT-TYPE": "vscode",
       },
       compat: {
-        thinkingFormat: "together",
+        thinkingFormat: "openrouter",
+        reasoningDisableMode: "openrouter-enabled-false",
         cacheControlFormat: "anthropic",
         supportsUsageInStreaming: true,
         maxTokensField: "max_tokens",
@@ -45,7 +46,7 @@ describe("ClinePass model discovery/config", () => {
       },
     })
     expect(model.compat?.thinkingFormat).not.toBe("zai")
-    expect(model.compat?.thinkingFormat).not.toBe("openrouter")
+    expect(model.compat?.thinkingFormat).toBe("openrouter")
   })
 
   it("dedupes discovered models", () => {
@@ -67,7 +68,7 @@ describe("ClinePass model discovery/config", () => {
   })
 })
 
-describe("Pi provider extension", () => {
+describe("OMP provider extension", () => {
   it("registers ClinePass provider with models and OAuth object", async () => {
     globalThis.fetch = mock(async () =>
       jsonResponse({ clinePass: [{ id: "cline-pass/glm-5.2", name: "GLM 5.2" }, { id: "cline-pass/qwen3.7-max" }] }),
@@ -83,8 +84,8 @@ describe("Pi provider extension", () => {
     expect(config.models.map((model) => model.id)).toEqual(["cline-pass/glm-5.2", "cline-pass/qwen3.7-max"])
     expect(config.models[0]).toMatchObject({
       api: "openai-completions",
-      headers: { "X-CORE-VERSION": "4.0.0" },
-      compat: { thinkingFormat: "together", cacheControlFormat: "anthropic" },
+      headers: { "X-CORE-VERSION": "4.0.4" },
+      compat: { thinkingFormat: "openrouter", reasoningDisableMode: "openrouter-enabled-false", cacheControlFormat: "anthropic" },
     })
     expect(typeof config.oauth.login).toBe("function")
     expect(typeof config.oauth.refreshToken).toBe("function")
