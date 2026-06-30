@@ -36,7 +36,7 @@ OAuth login
 |-----------|---------|
 | `src/` | All source. Flat structure — no subdirectories. |
 | `test/` | `bun:test` test suites mirroring `src/` modules. |
-| `assets/` | Project images (e.g. `pi-clinepass-hero.png`). |
+| `assets/` | Project images (e.g. `ohmypi-clinepass-hero.png`). |
 | project root | `package.json`, `tsconfig.json`, `bun.lock`, `README.md`. |
 
 ## Development Commands
