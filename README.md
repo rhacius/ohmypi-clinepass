@@ -1,6 +1,6 @@
 # ohmypi-clinepass
 
-![ohmypi-clinepass](assets/pi-clinepass-hero.png)
+> Fork of [codewithkenzo/pi-clinepass](https://github.com/codewithkenzo/pi-clinepass), updated to work with Oh My Pi (OMP).
 
 ClinePass models inside Oh My Pi through OMP's native provider system.
 
